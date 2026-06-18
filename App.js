@@ -14,20 +14,17 @@ import {
   KeyboardAvoidingView,
   Platform,
   Linking,
+  Share,
+  Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// ─────────────────────────────────────────────
 // FIREBASE CONFIG
-// ─────────────────────────────────────────────
 const API_KEY    = "AIzaSyDA-EfIgc_Ai283VuJHgo86gC3YWovn7pw";
 const PROJECT_ID = "projeto-android-756a1";
 const AUTH_URL   = `https://identitytoolkit.googleapis.com/v1/accounts`;
 const DB_URL     = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
 
-// ─────────────────────────────────────────────
-// CORES
-// ─────────────────────────────────────────────
 const COR = {
   laranja:    '#C97B2A',
   laranjaEsc: '#B5651D',
@@ -241,186 +238,158 @@ function ModalConfirmar({ visivel, mensagem, aoConfirmar, aoCancelar }) {
 // COMPONENTE: MODAL ENVIAR ORÇAMENTO
 // ─────────────────────────────────────────────
 function ModalEnviar({ visivel, item, remetente, aoFechar, aoToast }) {
-  const [telefone, setTelefone]             = useState('');
-  const [email, setEmail]                   = useState('');
-  const [enviando, setEnviando]             = useState(false);
-  const [abaSelecionada, setAbaSelecionada] = useState('whatsapp');
 
   const fmtValor = (n) => 'R$ ' + Number(n).toFixed(2).replace('.', ',');
   const fmtData  = (iso) => new Date(iso).toLocaleDateString('pt-BR');
 
   const limparEFechar = () => {
-    setTelefone('');
-    setEmail('');
-    setAbaSelecionada('whatsapp');
+
     aoFechar();
   };
 
-  const aoMudarTelefone = (texto) => setTelefone(texto.replace(/\D/g, ''));
-
-  const telefoneFormatado = () => {
-    const d = telefone;
-    if (d.length <= 2)  return d.length ? '(' + d : '';
-    if (d.length <= 6)  return '(' + d.slice(0, 2) + ') ' + d.slice(2);
-    if (d.length <= 10) return '(' + d.slice(0, 2) + ') ' + d.slice(2, 6) + '-' + d.slice(6);
-    return '(' + d.slice(0, 2) + ') ' + d.slice(2, 7) + '-' + d.slice(7, 11);
-  };
 
   const gerarMensagem = () => {
     const linhas = [
-      '🏷️ *Orçamento de Etiquetas*',
-      '',
-      '━━━━━━━━━━━━━━━━━━━━━',
-      item.material    ? '🧾 *Material:*    ' + item.material    : null,
-      item.largura     ? '↔️ *Largura:*     ' + item.largura + ' cm' : null,
-      item.altura      ? '↕️ *Altura:*      ' + item.altura + ' cm'  : null,
-      '💲 *Preço unit.:* ' + fmtValor(item.precoUnit),
-      '━━━━━━━━━━━━━━━━━━━━━',
-      '💰 *TOTAL: ' + fmtValor(item.total) + '*',
-      '━━━━━━━━━━━━━━━━━━━━━',
-      '',
-      '📅 Data: ' + fmtData(item.criadoEm),
+      'O Orçamento ficará em um Valor Total de: ' + fmtValor(item.total),
       '',
       '_Atenciosamente,_',
-      '_' + remetente + '_',
+      '_Extracola_',
     ].filter((l) => l !== null);
     return linhas.join('\n');
   };
 
   const enviarWhatsApp = async () => {
-    if (telefone.length < 10) {
-      aoToast('Informe um número com DDD (mínimo 10 dígitos)', 'erro');
-      return;
-    }
-    setEnviando(true);
-    const numeroIntl  = '55' + telefone;
-    const mensagem    = encodeURIComponent(gerarMensagem());
-    const url         = 'whatsapp://send?phone=' + numeroIntl + '&text=' + mensagem;
-    const urlFallback = 'https://wa.me/' + numeroIntl + '?text=' + mensagem;
-    try {
-      const podeNativo = await Linking.canOpenURL(url);
-      await Linking.openURL(podeNativo ? url : urlFallback);
-      aoToast('WhatsApp aberto!');
-      limparEFechar();
-    } catch (e) {
-      aoToast('Erro ao abrir WhatsApp', 'erro');
-    } finally {
-      setEnviando(false);
-    }
-  };
+  try {
+    const mensagem = encodeURIComponent(gerarMensagem());
 
-  const enviarEmail = async () => {
-    if (!email.trim()) {
-      aoToast('Informe um e-mail válido', 'erro');
-      return;
-    }
-    setEnviando(true);
+    await Linking.openURL(
+      `https://wa.me/?text=${mensagem}`
+    );
+
+    aoToast('WhatsApp aberto!');
+    limparEFechar();
+  } catch (e) {
+    aoToast('Erro ao abrir WhatsApp', 'erro');
+  }
+};
+
+const enviarEmail = async () => {
+  try {
     const assunto = encodeURIComponent('Orçamento de Etiquetas');
-    const corpo   = encodeURIComponent(gerarMensagem());
-    const urlEmail = 'mailto:' + email + '?subject=' + assunto + '&body=' + corpo;
-    try {
-      await Linking.openURL(urlEmail);
-      aoToast('E-mail aberto!');
-      limparEFechar();
-    } catch (e) {
-      aoToast('Erro ao abrir e-mail', 'erro');
-    } finally {
-      setEnviando(false);
-    }
-  };
+    const corpo = encodeURIComponent(gerarMensagem());
+
+    await Linking.openURL(
+      `mailto:?subject=${assunto}&body=${corpo}`
+    );
+
+    aoToast('E-mail aberto!');
+    limparEFechar();
+  } catch (e) {
+    aoToast('Erro ao abrir e-mail', 'erro');
+  }
+};
 
   if (!item) return null;
 
   return (
-    <Modal transparent animationType="slide" visible={visivel} onRequestClose={limparEFechar}>
-      <View style={st.overlay}>
-        <View style={st.enviarBox}>
-          <View style={st.enviarHeader}>
-            <Text style={st.enviarTitulo}>📤 Enviar Orçamento</Text>
-            <TouchableOpacity onPress={limparEFechar} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Text style={st.enviarFechar}>✕</Text>
-            </TouchableOpacity>
-          </View>
+  <Modal
+    transparent
+    animationType="slide"
+    visible={visivel}
+    onRequestClose={limparEFechar}
+  >
+    <View style={st.overlay}>
+      <View style={st.enviarBox}>
 
-          <View style={st.abas}>
-            <TouchableOpacity
-              style={[st.abaBtn, abaSelecionada === 'whatsapp' && st.abaBtnAtiva]}
-              onPress={() => setAbaSelecionada('whatsapp')}
-              activeOpacity={0.8}>
-              <Text style={[st.abaBtnTexto, abaSelecionada === 'whatsapp' && st.abaBtnTextoAtiva]}>💬 WhatsApp</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[st.abaBtn, abaSelecionada === 'email' && st.abaBtnAtiva]}
-              onPress={() => setAbaSelecionada('email')}
-              activeOpacity={0.8}>
-              <Text style={[st.abaBtnTexto, abaSelecionada === 'email' && st.abaBtnTextoAtiva]}>✉️ E-mail</Text>
-            </TouchableOpacity>
-          </View>
+        <View style={st.enviarHeader}>
+          <Text style={st.enviarTitulo}>
+            📤 Enviar Orçamento
+          </Text>
 
-          <View style={st.enviarResumo}>
-            <View style={st.enviarResumoLinha}>
-              <Text style={st.enviarResumoLabel}>Total</Text>
-              <Text style={st.enviarResumoTotal}>{fmtValor(item.total)}</Text>
-            </View>
-            <Text style={st.enviarResumoDetalhe}>
-              {item.material ? item.material : 'Sem material'} • {item.largura} x {item.altura}
+          <TouchableOpacity
+            onPress={limparEFechar}
+            hitSlop={{
+              top: 10,
+              bottom: 10,
+              left: 10,
+              right: 10,
+            }}
+          >
+            <Text style={st.enviarFechar}>✕</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={st.enviarResumo}>
+          <View style={st.enviarResumoLinha}>
+            <Text style={st.enviarResumoLabel}>
+              Total
+            </Text>
+
+            <Text style={st.enviarResumoTotal}>
+              {fmtValor(item.total)}
             </Text>
           </View>
 
-          {abaSelecionada === 'whatsapp' ? (
-            <>
-              <Text style={st.enviarCampoLabel}>WhatsApp do cliente (com DDD)</Text>
-              <View style={st.campoLinha}>
-                <Text style={st.telPrefixo}>🇧🇷 +55</Text>
-                <TextInput
-                  style={[st.input, { flex: 1 }]}
-                  value={telefoneFormatado()}
-                  onChangeText={aoMudarTelefone}
-                  placeholder="(11) 91234-5678"
-                  placeholderTextColor="#b08060"
-                  keyboardType="phone-pad"
-                  maxLength={16}
-                />
-              </View>
-            </>
-          ) : (
-            <>
-              <Text style={st.enviarCampoLabel}>E-mail do cliente</Text>
-              <View style={st.campoLinha}>
-                <TextInput
-                  style={[st.input, { flex: 1 }]}
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholder="cliente@email.com"
-                  placeholderTextColor="#b08060"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-              </View>
-            </>
-          )}
-
-          <View style={st.confirmBtns}>
-            <TouchableOpacity style={st.btnCancelar} onPress={limparEFechar} activeOpacity={0.8}>
-              <Text style={st.btnCancelarTexto}>Cancelar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[st.btnEnviar, enviando && st.btnDesabilitado]}
-              onPress={abaSelecionada === 'whatsapp' ? enviarWhatsApp : enviarEmail}
-              disabled={enviando}
-              activeOpacity={0.85}>
-              {enviando
-                ? <ActivityIndicator color="#fff" size="small" />
-                : <Text style={st.btnEnviarTexto}>
-                    {abaSelecionada === 'whatsapp' ? 'Enviar  💬' : 'Enviar  ✉️'}
-                  </Text>
-              }
-            </TouchableOpacity>
-          </View>
+          <Text style={st.enviarResumoDetalhe}>
+            {item.material} • {item.largura} x {item.altura}
+          </Text>
         </View>
+
+<View style={{ marginTop: 15, alignItems: 'center' }}>
+
+  <View
+    style={{
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: 25,
+      marginBottom: 20,
+    }}
+  >
+    <TouchableOpacity
+      onPress={enviarWhatsApp}
+      activeOpacity={0.8}
+    >
+      <Image
+        source={require('./assets/whatsapp.png')}
+        style={{
+          width: 70,
+          height: 70,
+        }}
+        resizeMode="contain"
+      />
+    </TouchableOpacity>
+
+    <TouchableOpacity
+      onPress={enviarEmail}
+      activeOpacity={0.8}
+    >
+      <Image
+        source={require('./assets/e-mail.png')}
+        style={{
+          width: 70,
+          height: 70,
+        }}
+        resizeMode="contain"
+      />
+    </TouchableOpacity>
+  </View>
+
+  <TouchableOpacity
+    style={st.btnCancelar}
+    onPress={limparEFechar}
+    activeOpacity={0.8}
+  >
+    <Text style={st.btnCancelarTexto}>
+      Cancelar
+    </Text>
+  </TouchableOpacity>
+
+</View>
+
       </View>
-    </Modal>
-  );
+    </View>
+  </Modal>
+);
 }
 
 // ─────────────────────────────────────────────
@@ -533,8 +502,14 @@ function TelaLogin({ aoLogar }) {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={st.loginScroll} keyboardShouldPersistTaps="handled">
           <View style={st.logoArea}>
-            <View style={st.logoBox}><Text style={st.logoEmoji}>🏷️</Text></View>
-            <Text style={st.appTitulo}>EtiquetaFácil</Text>
+            <Image
+              source={require('./assets/Extracola.png')}
+              style={{
+                width:1200,
+                height:80,
+                resizeMode: 'contain',
+              }}
+              />
             <Text style={st.appSub}>Orçamentos de etiquetas</Text>
           </View>
 
@@ -600,7 +575,6 @@ function TelaOrcamentos({ user, aoSair }) {
     setForm((prev) => {
       const novo = { ...prev, [campo]: valor };
       
-      // Se mudar o material, atualiza o preço unitário automaticamente
       if (campo === 'material') {
         const mat = LISTA_MATERIAIS.find(m => m.nome === valor);
         if (mat) novo.precoUnit = String(mat.preco);
@@ -610,7 +584,7 @@ function TelaOrcamentos({ user, aoSair }) {
       const alt  = parseFloat(novo.altura.replace(',', '.'))  || 0;
       const preco = parseFloat(novo.precoUnit.replace(',', '.')) || 0;
       
-      // FÓRMULA: (Largura * Altura / 1000) * Preço = R$/Milheiro
+      // Fórmula do Orçamento
       const total = (larg * alt / 1000) * preco;
       
       novo.total = total.toFixed(2).replace('.', ',');
@@ -741,9 +715,7 @@ function TelaOrcamentos({ user, aoSair }) {
   );
 }
 
-// ─────────────────────────────────────────────
 // APP PRINCIPAL
-// ─────────────────────────────────────────────
 export default function App() {
   const [user, setUser] = useState(null);
 
@@ -754,9 +726,7 @@ export default function App() {
   );
 }
 
-// ─────────────────────────────────────────────
-// ESTILOS
-// ─────────────────────────────────────────────
+// STYLES
 const st = StyleSheet.create({
   loginSafe: { flex: 1, backgroundColor: COR.laranjaEsc },
   loginScroll: { flexGrow: 1, justifyContent: 'center', padding: 20 },
@@ -844,26 +814,17 @@ const st = StyleSheet.create({
   confirmTitulo: { fontSize: 17, fontWeight: '700', color: COR.marrom, textAlign: 'center', marginBottom: 8 },
   confirmMsg: { fontSize: 14, color: '#7a5a3a', textAlign: 'center', marginBottom: 24 },
   confirmBtns: { flexDirection: 'row' },
-  btnCancelar: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1.5, borderColor: '#e8d5be', alignItems: 'center', marginRight: 8 },
-  btnCancelarTexto: { fontSize: 14, fontWeight: '600', color: '#7a5a3a' },
+  btnCancelar: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1.5, borderColor: '#e8d5be', alignItems: 'center' },
+  btnCancelarTexto: { color: '#8a6a4a', fontWeight: '700' },
   btnExcluir: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#ef4444', alignItems: 'center' },
   btnExcluirTexto: { fontSize: 14, fontWeight: '600', color: '#fff' },
   enviarBox: { backgroundColor: COR.card, borderRadius: 20, padding: 22, width: '100%', elevation: 12 },
   enviarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   enviarTitulo: { fontSize: 17, fontWeight: '700', color: COR.marrom },
   enviarFechar: { fontSize: 18, color: '#aaa', fontWeight: '700' },
-  abas: { flexDirection: 'row', backgroundColor: '#f5ede3', borderRadius: 10, padding: 4, marginBottom: 16 },
-  abaBtn: { flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
-  abaBtnAtiva: { backgroundColor: '#fff', elevation: 2 },
-  abaBtnTexto: { fontSize: 13, fontWeight: '600', color: '#8a6a4a' },
-  abaBtnTextoAtiva: { color: COR.laranja },
   enviarResumo: { backgroundColor: '#fdf8f3', borderRadius: 12, padding: 14, marginBottom: 18, borderWidth: 1, borderColor: '#e8d5be' },
   enviarResumoLinha: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   enviarResumoLabel: { fontSize: 12, color: '#8a6a4a', fontWeight: '600' },
   enviarResumoTotal: { fontSize: 20, fontWeight: '700', color: COR.laranja },
   enviarResumoDetalhe: { fontSize: 12, color: '#8a6a4a', lineHeight: 18 },
-  enviarCampoLabel: { fontSize: 11, fontWeight: '700', color: '#8a6a4a', marginBottom: 6, textTransform: 'uppercase' },
-  btnEnviar: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: COR.verde, alignItems: 'center' },
-  btnEnviarTexto: { fontSize: 14, fontWeight: '700', color: '#fff' },
-  telPrefixo: { paddingHorizontal: 12, fontSize: 14, fontWeight: '600', color: COR.marrom },
 });
